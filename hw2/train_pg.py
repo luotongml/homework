@@ -35,7 +35,13 @@ def build_mlp(
 
     with tf.variable_scope(scope):
         # YOUR_CODE_HERE
-        pass
+
+        input = input_placeholder
+        for i in range(n_layers):
+            h = tf.layers.dense(input, units=size, activation=activation, name="dense_{}".format(i + 1))
+            input = h
+        output = tf.layers.dense(h, units=output_size, activation=output_activation)
+        return output
 
 def pathlength(path):
     return len(path["reward"])
@@ -123,7 +129,7 @@ def train_PG(exp_name='',
         sy_ac_na = tf.placeholder(shape=[None, ac_dim], name="ac", dtype=tf.float32) 
 
     # Define a placeholder for advantages
-    sy_adv_n = TODO
+    sy_adv_n = tf.Variable(expected_shape=[None], dtype=tf.float32, name="advantages")#TODO
 
 
     #========================================================================================#
@@ -167,7 +173,7 @@ def train_PG(exp_name='',
 
     if discrete:
         # YOUR_CODE_HERE
-        sy_logits_na = TODO
+        sy_logits_na = build_mlp(sy_ob_no,[None],n_layers=2, size=size)#TODO
         sy_sampled_ac = TODO # Hint: Use the tf.multinomial op
         sy_logprob_n = TODO
 
