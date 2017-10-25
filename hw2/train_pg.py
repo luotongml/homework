@@ -41,6 +41,8 @@ def build_mlp(
             h = tf.layers.dense(input, units=size, activation=activation, name="dense_{}".format(i + 1))
             input = h
         output = tf.layers.dense(h, units=output_size, activation=output_activation)
+
+        #output = tf.layers.s
         return output
 
 def pathlength(path):
@@ -129,7 +131,7 @@ def train_PG(exp_name='',
         sy_ac_na = tf.placeholder(shape=[None, ac_dim], name="ac", dtype=tf.float32) 
 
     # Define a placeholder for advantages
-    sy_adv_n = tf.Variable(expected_shape=[None], dtype=tf.float32, name="advantages")#TODO
+    sy_adv_n = tf.placeholder(shape=[None, ac_dim], name = "adv_n", dtype=tf.float32) #TODO
 
 
     #========================================================================================#
@@ -173,9 +175,9 @@ def train_PG(exp_name='',
 
     if discrete:
         # YOUR_CODE_HERE
-        sy_logits_na = build_mlp(sy_ob_no,[None],n_layers=2, size=size)#TODO
-        sy_sampled_ac = TODO # Hint: Use the tf.multinomial op
-        sy_logprob_n = TODO
+        sy_logits_na = build_mlp(sy_ob_no,[None],n_layers=2, size=size)
+        sy_sampled_ac = tf.squeeze(tf.multinomial(sy_logits_na, 1, name="sampled_action"),[1])#TODO # Hint: Use the tf.multinomial op
+        sy_logprob_n = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=sy_ac_na,logits=sy_logits_na, name="logprob_n")
 
     else:
         # YOUR_CODE_HERE
@@ -191,7 +193,8 @@ def train_PG(exp_name='',
     # Loss Function and Training Operation
     #========================================================================================#
 
-    loss = TODO # Loss function that we'll differentiate to get the policy gradient.
+    weighted_negative_likelihood = tf.multiply(sy_logprob_n, sy_adv_n)
+    loss = tf.reduce_mean(weighted_negative_likelihood)#TODO # Loss function that we'll differentiate to get the policy gradient.
     update_op = tf.train.AdamOptimizer(learning_rate).minimize(loss)
 
 
@@ -210,7 +213,9 @@ def train_PG(exp_name='',
         # Define placeholders for targets, a loss function and an update op for fitting a 
         # neural network baseline. These will be used to fit the neural network baseline. 
         # YOUR_CODE_HERE
-        baseline_update_op = TODO
+        baseline_target = tf.placeholder(tf.float32, [None])
+        loss = tf.losses.mean_squared_error(baseline_target, baseline_prediction)
+        baseline_update_op = tf.train.AdamOptimizer(learning_rate).minimize(loss)#TODO
 
 
     #========================================================================================#
@@ -323,7 +328,25 @@ def train_PG(exp_name='',
         #====================================================================================#
 
         # YOUR_CODE_HERE
-        q_n = TODO
+        def discount_rewards_to_go(rewards, gamma):
+            res = []
+            future_reward = 0
+            for r in reversed(rewards):
+                future_reward = future_reward * gamma + r
+                res.append(future_reward)
+            return res[::-1]
+
+        def sum_discount_rewards(rewards, gamma):
+            return sum((gamma ** i) * rewards[i] for i in range(len(rewards)))
+
+        q_n = []
+        if reward_to_go:
+            q_n = np.concatenate([discount_rewards_to_go(path["reward"], gamma) for path in paths])
+        else:
+            q_n = np.concatenate([
+                [sum_discount_rewards(path["reward"], gamma)] * pathlength(path)
+                for path in paths])
+
 
         #====================================================================================#
         #                           ----------SECTION 5----------
@@ -338,8 +361,8 @@ def train_PG(exp_name='',
             # Hint #bl1: rescale the output from the nn_baseline to match the statistics
             # (mean and std) of the current or previous batch of Q-values. (Goes with Hint
             # #bl2 below.)
-
-            b_n = TODO
+            b_n = sess.run(baseline_prediction, feed_dict={sy_ob_no: ob_no})
+            b_n = (b_n - np.mean(b_n)) / np.std(b_n) * np.std(q_n) + np.mean(q_n)
             adv_n = q_n - b_n
         else:
             adv_n = q_n.copy()
