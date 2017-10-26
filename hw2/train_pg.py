@@ -131,7 +131,7 @@ def train_PG(exp_name='',
         sy_ac_na = tf.placeholder(shape=[None, ac_dim], name="ac", dtype=tf.float32) 
 
     # Define a placeholder for advantages
-    sy_adv_n = tf.placeholder(shape=[None, ac_dim], name = "adv_n", dtype=tf.float32) #TODO
+    sy_adv_n = tf.placeholder(shape=[None], name = "adv_n", dtype=tf.float32) #TODO
 
 
     #========================================================================================#
@@ -175,13 +175,13 @@ def train_PG(exp_name='',
 
     if discrete:
         # YOUR_CODE_HERE
-        sy_logits_na = build_mlp(sy_ob_no,[None],n_layers=2, size=size)
+        sy_logits_na = build_mlp(sy_ob_no,ac_dim,scope="policy_nn", n_layers=2, size=size)
         sy_sampled_ac = tf.squeeze(tf.multinomial(sy_logits_na, 1, name="sampled_action"),[1])#TODO # Hint: Use the tf.multinomial op
         sy_logprob_n = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=sy_ac_na,logits=sy_logits_na, name="logprob_n")
 
     else:
         # YOUR_CODE_HERE
-        sy_mean = build_mlp(sy_ob_no, [None, ac_dim], n_layers=2, size=size)
+        sy_mean = build_mlp(sy_ob_no, ac_dim, scope="policy_nn", n_layers=2, size=size)
         sy_logstd = tf.get_variable("logstd", shape=[ac_dim]) # logstd should just be a trainable variable, not a network output.
         sy_sampled_ac = tf.multiply(tf.random_normal(tf.shape(sy_mean)), tf.exp(sy_logstd)) + sy_mean
             #(sy_mean.shape, sy_mean, sy_logstd, dtype=tf.float32, name="sampled_action")
