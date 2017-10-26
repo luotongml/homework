@@ -181,10 +181,14 @@ def train_PG(exp_name='',
 
     else:
         # YOUR_CODE_HERE
-        sy_mean = TODO
-        sy_logstd = TODO # logstd should just be a trainable variable, not a network output.
-        sy_sampled_ac = TODO
-        sy_logprob_n = TODO  # Hint: Use the log probability under a multivariate gaussian. 
+        sy_mean = build_mlp(sy_ob_no, [None, ac_dim], n_layers=2, size=size)
+        sy_logstd = tf.get_variable("logstd", shape=[ac_dim]) # logstd should just be a trainable variable, not a network output.
+        sy_sampled_ac = tf.multiply(tf.random_normal(tf.shape(sy_mean)), tf.exp(sy_logstd)) + sy_mean
+            #(sy_mean.shape, sy_mean, sy_logstd, dtype=tf.float32, name="sampled_action")
+
+        dist = tf.contrib.distributions.MultivariateNormalDiag(loc=sy_mean,
+                                                               scale_diag=tf.exp(sy_logstd))
+        sy_logprob_n = -dist.log_prob(sy_ac_na) # Hint: Use the log probability under a multivariate gaussian.
 
 
 
@@ -376,7 +380,8 @@ def train_PG(exp_name='',
             # On the next line, implement a trick which is known empirically to reduce variance
             # in policy gradient methods: normalize adv_n to have mean zero and std=1. 
             # YOUR_CODE_HERE
-            pass
+            adv_n = (adv_n-np.mean(adv_n))/(np.std(adv_n)+ 1e-8)
+
 
 
         #====================================================================================#
@@ -395,7 +400,8 @@ def train_PG(exp_name='',
             # targets to have mean zero and std=1. (Goes with Hint #bl1 above.)
 
             # YOUR_CODE_HERE
-            pass
+            norm_q_n = (q_n-np.mean(q_n))/(np.std(q_n)+1e-8)
+            sess.run(baseline_update_op, feed_dict={sy_ob_no:ob_no, baseline_target:norm_q_n})
 
         #====================================================================================#
         #                           ----------SECTION 4----------
@@ -409,6 +415,7 @@ def train_PG(exp_name='',
         # and after an update, and then log them below. 
 
         # YOUR_CODE_HERE
+        _, loss_v = sess.run([update_op,loss], feed_dict={sy_ob_no:ob_no, sy_ac_na:ac_na, sy_adv_n:adv_n})
 
 
         # Log diagnostics
@@ -424,6 +431,7 @@ def train_PG(exp_name='',
         logz.log_tabular("EpLenStd", np.std(ep_lengths))
         logz.log_tabular("TimestepsThisBatch", timesteps_this_batch)
         logz.log_tabular("TimestepsSoFar", total_timesteps)
+        logz.log_tabular("Loss", loss_v)
         logz.dump_tabular()
         logz.pickle_tf_vars()
 
